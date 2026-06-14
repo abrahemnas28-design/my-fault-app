@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import os
 import uuid
+from datetime import datetime
 
 # תיקיית תמונות
 UPLOAD_DIR = "uploads"
@@ -11,19 +12,30 @@ if not os.path.exists(UPLOAD_DIR):
 # סיסמת מנהל
 ADMIN_PASSWORD = "1997"
 
-# בסיס נתונים
+# בסיס נתונים - הוספנו עמודת created_at לשמירת זמן יצירת התקלה
 def init_db():
     conn = sqlite3.connect('factory_faults.db')
     c = conn.cursor()
+    # בודק אם הטבלה קיימת, ואם לא יוצר אותה עם עמודת זמן
     c.execute('''CREATE TABLE IF NOT EXISTS faults 
-                 (id TEXT PRIMARY KEY, location TEXT, description TEXT, note TEXT, status TEXT, image_path TEXT)''')
+                 (id TEXT PRIMARY KEY, location TEXT, description TEXT, note TEXT, status TEXT, image_path TEXT, created_at TEXT)''')
+    
+    # קטע קוד קטן שמוודא שאם הרצת את האפליקציה בעבר, העמודה החדשה תתווסף בלי למחוק נתונים קיימים
+    try:
+        c.execute("ALTER TABLE faults ADD COLUMN created_at TEXT")
+    except sqlite3.OperationalError:
+        pass # העמודה כבר קיימת
+        
     conn.commit()
     conn.close()
 
+# הוספת תקלה עם זמן יצירה נוכחי
 def add_fault(location, description, note, status, image_path):
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('factory_faults.db')
     c = conn.cursor()
-    c.execute("INSERT INTO faults VALUES (?, ?, ?, ?, ?, ?)", (str(uuid.uuid4()), location, description, note, status, image_path))
+    c.execute("INSERT INTO faults VALUES (?, ?, ?, ?, ?, ?, ?)", 
+              (str(uuid.uuid4()), location, description, note, status, image_path, current_time))
     conn.commit()
     conn.close()
 
@@ -41,12 +53,32 @@ def delete_fault(fault_id, img_path):
     conn.commit()
     conn.close()
     if img_path and os.path.exists(img_path):
-        os.remove(img_path)
+        try:
+            os.remove(img_path)
+        except:
+            pass
 
+# שליפת הנתונים במיון חכם: קודם הסטטוסים הפתוחים, ובתוך כל סטטוס החדש ביותר למעלה
 def get_all_faults():
     conn = sqlite3.connect('factory_faults.db')
     c = conn.cursor()
-    c.execute("SELECT * FROM faults")
+    
+    # המיון אומר למערכת: 
+    # 1. תציג קודם את "לא בוצע", אחר כך "בתיקון", ורק בסוף "טופל"
+    # 2. בתוך כל קבוצה כזו, תמיין לפי זמן היצירה מהחדש ביותר לישן ביותר (DESC)
+    query = """
+        SELECT id, location, description, note, status, image_path 
+        FROM faults 
+        ORDER BY 
+            CASE status
+                WHEN 'לא בוצע' THEN 1
+                WHEN 'בתיקון' THEN 2
+                WHEN 'טופל' THEN 3
+                ELSE 4
+            END,
+            created_at DESC
+    """
+    c.execute(query)
     data = c.fetchall()
     conn.close()
     return data
@@ -92,7 +124,6 @@ elif role == "🔑 אזור מנהל":
         tab1, tab2 = st.tabs(["➕ הוספת תקלה חדשה", "❌ מחיקת תקלות"])
         
         with tab1:
-            # כאן הוספתי את ה-clear_on_submit=True שמנקה את השורות אוטומטית!
             with st.form("add_form", clear_on_submit=True):
                 loc = st.text_input("מיקום התקלה (למשל: מסוע נוזלים, מפריד 2)")
                 desc = st.text_area("מה התקלה?")
