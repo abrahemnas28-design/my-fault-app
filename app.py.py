@@ -9,7 +9,7 @@ if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 # סיסמת מנהל
-ADMIN_PASSWORD = "1234"
+ADMIN_PASSWORD = "1997"
 
 # בסיס נתונים
 def init_db():
