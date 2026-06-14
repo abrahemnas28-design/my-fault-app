@@ -92,11 +92,13 @@ elif role == "🔑 אזור מנהל":
         tab1, tab2 = st.tabs(["➕ הוספת תקלה חדשה", "❌ מחיקת תקלות"])
         
         with tab1:
-            with st.form("add_form"):
+            # כאן הוספתי את ה-clear_on_submit=True שמנקה את השורות אוטומטית!
+            with st.form("add_form", clear_on_submit=True):
                 loc = st.text_input("מיקום התקלה (למשל: מסוע נוזלים, מפריד 2)")
                 desc = st.text_area("מה התקלה?")
                 initial_note = st.text_area("הערה מנהלתית (אופציונלי)")
                 uploaded_file = st.file_uploader("צרף תמונה", type=['png', 'jpg', 'jpeg'])
+                
                 if st.form_submit_button("🚀 פרסם לעובדים"):
                     if loc and desc:
                         file_path = ""
@@ -105,7 +107,7 @@ elif role == "🔑 אזור מנהל":
                             with open(file_path, "wb") as f:
                                 f.write(uploaded_file.getbuffer())
                         add_fault(loc, desc, initial_note, "לא בוצע", file_path)
-                        st.success("התקלה פורסמה!")
+                        st.success("התקלה פורסמה בהצלחה והשדות התאפסו!")
                         st.rerun()
                     else:
                         st.error("חובה למלא מיקום ותיאור!")
